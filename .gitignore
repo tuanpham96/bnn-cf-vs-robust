@@ -1,3 +1,9 @@
+# Project specifics 
+ext/*
+misc/*
+
+########################################
+# Below is Python gitignore general
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
