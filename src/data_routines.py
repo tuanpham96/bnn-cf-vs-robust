@@ -14,7 +14,7 @@ def parse_task(full_task, sep='-'):
 
 def create_data_iter(task, action='none', batch_size=100, return_dict=False,
                      shuff_buffsz=2000, map_npar=tf.data.AUTOTUNE,
-                     ds_prefetch=True, ds_cache=True, return_iters=False):
+                     ds_prefetch=True, ds_cache=True, return_iters=True):
     task = task.upper()
 
     if task in ['MNIST', 'FMNIST']:

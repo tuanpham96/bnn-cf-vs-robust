@@ -8,7 +8,7 @@ def SignActivation(x):
     y = tf.sign(x)
     def grad(grad_output):
         # use hardtanh gradient (see paper): anything with abs() > 1 -> 0
-        return tf.where(tf.abs(x) > 1, 0, grad_output)
+        return tf.where(tf.abs(x) > 1.0, 0.0, grad_output)
     return y, grad
 
 def Binarize(tensor):
@@ -22,7 +22,7 @@ class BinarizeLinear(layers.Layer):
     dropout_rate:   if not None, will use to construct Dropout layer
     act_fun:        if not None, activation function; currently only 'sign' (SignActivation)
     norm_type:      if not None, will use for normalization layer; currently only 'bn' (batchnorm)
-    bin_inp:        (TODO) whether to normalize input; in paper says NO but unclear in code does
+    bin_inp:        (TODO) whether to normalize input; in paper says NO but in code does
     '''
     def __init__(self, units, init_type = 'gauss', init_width = 0.01,
                  dropout_rate = None, norm_type = 'bn', act_fun = 'sign',
