@@ -10,7 +10,6 @@ import copy
 matplotlib.use('agg')
 
 
-
 from collections import OrderedDict
 from datetime import datetime
 from PIL import Image
@@ -40,8 +39,6 @@ class BinarizeLinear(torch.nn.Linear):
 
     def forward(self, input):
 
-        if input.size(1) != 784:
-            input.data=Binarize(input.data)
         if not hasattr(self.weight,'org'):
             self.weight.org=self.weight.data.clone()
         self.weight.data=Binarize(self.weight.org)
@@ -275,7 +272,7 @@ class DNN(torch.nn.Module):
             self.layers['bn'+str(l+1)].load_state_dict(bn_states[l])
 
 
-def plot_parameters(model, path, save=True):
+def plot_parameters(model, save=True, save_path=''):
 
     fig = plt.figure(figsize=(15, 10))
     i = 1
@@ -298,8 +295,12 @@ def plot_parameters(model, path, save=True):
             plt.hist( weights.flatten(), binet)
 
     if save:
-        time = datetime.now().strftime('%H-%M-%S')
-        fig.savefig(path+'/'+time+'_weight_distribution.png')
+        save_suff = '_weight_distribution.png'
+        if len(save_path) == 0:
+            save_name = 'data/' + datetime.now().strftime('%H-%M-%S') + save_suff
+        else:
+            save_name = save_path + save_suff
+        fig.savefig(save_name)
     plt.close()
 
 
