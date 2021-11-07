@@ -357,7 +357,7 @@ for source_task, data_key in tqdm(perturb_data_src, desc='CORRUPTED DATA', **par
         data['test_loss'].append(test_loss)
         data['test_time'].append(test_time)
         print('\n source = %s | type = %s | train_at = %s || acc = %.2f %% | loss = %.4f | time = %.2f min' \
-              %(source_task, data_key, train_phase, test_accuracy, test_loss, test_time/60.0))
+              %(source_task, data_key, train_phase, test_acc, test_loss, test_time/60.0))
 
 df_data = pd.DataFrame(data)
 df_data.to_csv(robust_perf_path, index = False)
