@@ -1,5 +1,7 @@
 # Project specific 
+*.insyncdl
 ext/* 
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

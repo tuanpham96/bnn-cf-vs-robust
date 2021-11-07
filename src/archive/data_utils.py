@@ -36,9 +36,9 @@ fashion_mnist_test_loader = torch.utils.data.DataLoader(fmnist_dset_test, batch_
 #usps_test_loader = torch.utils.data.DataLoader(usps_dset_test, batch_size=100, shuffle=False, num_workers=1)
 
 def create_permuted_loaders(task):
-    
+
     permut = torch.from_numpy(np.random.permutation(784))
-        
+
     transform = torchvision.transforms.Compose([torchvision.transforms.ToTensor(),
                       torchvision.transforms.Lambda(lambda x: x.view(-1)[permut].view(1, 28, 28) ),
                       torchvision.transforms.Normalize(mean=(0.0,), std=(1.0,))])
@@ -50,9 +50,9 @@ def create_permuted_loaders(task):
         dset_test = torchvision.datasets.MNIST('./mnist_pytorch', train=False, transform=transform, target_transform=None, download=True)
         test_loader = torch.utils.data.DataLoader(dset_test, batch_size=1000, shuffle=False, num_workers=1)
 
-        
+
     elif task=='FMNIST':
-   
+
         dset_train = torchvision.datasets.FashionMNIST('./fmnist_pytorch', train=True, transform=transform, target_transform=None, download=True)
         train_loader = torch.utils.data.DataLoader(dset_train, batch_size=100, shuffle=True, num_workers=1)
 
@@ -62,17 +62,17 @@ def create_permuted_loaders(task):
     return train_loader, test_loader, dset_train
 
 
-class DatasetProcessing(torch.utils.data.Dataset): 
-    def __init__(self, data, target, transform=None): 
+class DatasetProcessing(torch.utils.data.Dataset):
+    def __init__(self, data, target, transform=None):
         self.transform = transform
         self.data = data.astype(np.float32)[:,:,None]
         self.target = torch.from_numpy(target).long()
-    def __getitem__(self, index): 
+    def __getitem__(self, index):
         if self.transform is not None:
             return self.transform(self.data[index]), self.target[index]
         else:
             return self.data[index], self.target[index]
-    def __len__(self): 
+    def __len__(self):
         return len(list(self.data))
 
 
@@ -80,7 +80,7 @@ def process_features(X_train, X_test, mode):
     if mode=="cutoff":
         cutoff = 8
         threshold_train = np.zeros((np.shape(X_train)[0],1))
-        threshold_test = np.zeros((np.shape(X_test)[0],1)) 
+        threshold_test = np.zeros((np.shape(X_test)[0],1))
         for i in range(np.shape(X_train)[0]):
             threshold_train[i,0] = np.unique(X_train[i,:])[-cutoff]
         for i in range(np.shape(X_test)[0]):
@@ -97,7 +97,7 @@ def process_features(X_train, X_test, mode):
         X_train = ( X_train - X_train.mean(axis = 1, keepdims = True) )/ X_train.var(axis =1, keepdims = True)  # Instance norm
         X_test = ( X_test - X_test.mean(axis=1, keepdims = True) ) /X_test.var(axis = 1, keepdims = True)
     elif mode=="mean_over_pixels_sign":
-        X_train =   (np.sign(X_train  - X_train.mean(axis = 1, keepdims = True) ) + 1.0)/2  
+        X_train =   (np.sign(X_train  - X_train.mean(axis = 1, keepdims = True) ) + 1.0)/2
         X_test =  (np.sign (X_test  - X_test.mean(axis = 1, keepdims = True) ) + 1.0)/2
     elif mode=="global_mean":
         X_train = ( X_train - X_train.mean(keepdims = True) )/ X_train.var(keepdims = True) # Batch norm
@@ -118,36 +118,36 @@ vrelabel = np.vectorize(relabel)
 def process_cifar10(subset):
 
     cifar_X_train = torch.load('cifar10_features_dataset/train.pt').cpu().numpy()
-    cifar_Y_train = torch.load('cifar10_features_dataset/train_targets.pt').cpu().numpy() 
-    cifar_X_test = torch.load('cifar10_features_dataset/test.pt').cpu().numpy() 
+    cifar_Y_train = torch.load('cifar10_features_dataset/train_targets.pt').cpu().numpy()
+    cifar_X_test = torch.load('cifar10_features_dataset/test.pt').cpu().numpy()
     cifar_Y_test = torch.load('cifar10_features_dataset/test_targets.pt').cpu().numpy()
 
     cifar_Y_train = vrelabel(cifar_Y_train)
     cifar_Y_test = vrelabel(cifar_Y_test)
 
     if subset=='animals':
-        partition = np.vectorize(lambda l: l < 5) 
+        partition = np.vectorize(lambda l: l < 5)
     elif subset=='vehicles':
-        partition = np.vectorize(lambda l: l >= 5)  
+        partition = np.vectorize(lambda l: l >= 5)
     else:
         raise('error unsuported subset')
- 
+
     mode = 'mean_over_pixels'
-    sub_X_train = cifar_X_train[partition(cifar_Y_train)] 
-    sub_X_test = cifar_X_test[partition(cifar_Y_test)] 
- 
-    sub_X_train, sub_X_test = process_features(sub_X_train, sub_X_test, mode) 
- 
-    sub_Y_train = cifar_Y_train[partition(cifar_Y_train)] 
-    sub_Y_test = cifar_Y_test[partition(cifar_Y_test)] 
- 
-    sub_dset_train = DatasetProcessing(sub_X_train, sub_Y_train) 
-    sub_train_loader = torch.utils.data.DataLoader(sub_dset_train, batch_size=100, shuffle=True, num_workers=4) 
- 
-    sub_dset_test = DatasetProcessing(sub_X_test, sub_Y_test) 
-    sub_test_loader = torch.utils.data.DataLoader(sub_dset_test, batch_size=100, shuffle=False, num_workers=0) 
- 
-    return sub_train_loader, sub_test_loader, sub_dset_train 
+    sub_X_train = cifar_X_train[partition(cifar_Y_train)]
+    sub_X_test = cifar_X_test[partition(cifar_Y_test)]
+
+    sub_X_train, sub_X_test = process_features(sub_X_train, sub_X_test, mode)
+
+    sub_Y_train = cifar_Y_train[partition(cifar_Y_train)]
+    sub_Y_test = cifar_Y_test[partition(cifar_Y_test)]
+
+    sub_dset_train = DatasetProcessing(sub_X_train, sub_Y_train)
+    sub_train_loader = torch.utils.data.DataLoader(sub_dset_train, batch_size=100, shuffle=True, num_workers=4)
+
+    sub_dset_test = DatasetProcessing(sub_X_test, sub_Y_test)
+    sub_test_loader = torch.utils.data.DataLoader(sub_dset_test, batch_size=100, shuffle=False, num_workers=0)
+
+    return sub_train_loader, sub_test_loader, sub_dset_train
 
 
 
@@ -215,10 +215,10 @@ def createHyperparametersFile(path, args):
         "- init: {}".format(args.init) + "\n",
         "- init width: {}".format(args.init_width) + "\n",
         "- seed: {}".format(args.seed) + "\n"]
-   
+
     hyperparameters.writelines(L)
     hyperparameters.close()
-        
+
 
 
 
