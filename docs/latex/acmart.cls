@@ -1878,7 +1878,7 @@
       \@copyrightyear.\
     \fi
     \if@ACM@manuscript
-      Manuscript submitted to ACM\\
+      \\
     \else
       \if@ACM@authorversion
           This is the author's version of the work. It is posted here for
@@ -2605,7 +2605,7 @@
       \fancyhead[RE]{\@shortauthors}%
       \fancyhead[LO]{\ACM@linecountL\shorttitle}%
       \if@ACM@nonacm\else%
-        \fancyfoot[RO,LE]{\footnotesize Manuscript submitted to ACM}
+        \fancyfoot[RO,LE]{\footnotesize }
       \fi%
     \or % acmsmall
       \fancyhead[LE]{\ACM@linecountL\@headfootfont\@acmArticlePage}%
@@ -2729,7 +2729,7 @@
       \fancyhead[L]{\ACM@linecountL}%
       \fancyfoot[RO,LE]{\if@ACM@printfolios\small\thepage\fi}%
       \if@ACM@nonacm\else%
-        \fancyfoot[RE,LO]{\footnotesize Manuscript submitted to ACM}%
+        \fancyfoot[RE,LO]{\footnotesize }%
       \fi%
     \or % acmsmall
       \if@ACM@nonacm\else%
@@ -2773,7 +2773,6 @@
     \ifnum\ACM@format@nr=0\relax % Manuscript
     \fancyfoot[LO,RE]{\ACM@timestamp\quad
       \if@ACM@nonacm\else
-        \footnotesize Manuscript submitted to ACM
       \fi}
     \else
     \fancyfoot[LO,RE]{\ACM@timestamp}
