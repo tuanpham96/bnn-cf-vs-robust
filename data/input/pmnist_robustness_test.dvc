@@ -1,5 +1,0 @@
-outs:
-- md5: b22e08a46127351e711dd412c52ab567.dir
-  size: 141304402
-  nfiles: 17
-  path: pmnist_robustness_test

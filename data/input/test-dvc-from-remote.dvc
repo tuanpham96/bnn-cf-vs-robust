@@ -1,5 +1,0 @@
-outs:
-- md5: fb7f6543ecaaacf4ecc391d863eba3a3.dir
-  size: 27
-  nfiles: 1
-  path: test-dvc-from-remote
