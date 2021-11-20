@@ -1,0 +1,5 @@
+outs:
+- md5: 06be5d87dc38d0a3a7ca80773a75fbb6.dir
+  size: 90
+  nfiles: 2
+  path: test-dvc
