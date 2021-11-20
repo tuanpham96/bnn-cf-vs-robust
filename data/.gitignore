@@ -2,9 +2,10 @@ raw/*
 input/*
 output/*
 
-
 !raw/.gitkeep
 !input/.gitkeep
 !output/.gitkeep
+
+!*.dvc
 
 test-kaggle/*
