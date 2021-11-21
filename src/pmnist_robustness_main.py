@@ -30,7 +30,7 @@ parser = argparse.ArgumentParser(description='BNN learning several tasks in a ro
 parser.add_argument('--input', type = str, help='Source for meta-data of task sequence')
 parser.add_argument('--batch-size', type = int, default = 100, help='(default: %(default)d) Batch size for data loader')
 parser.add_argument('--num-workers', type = int, default = 2, help='(default: %(default)d) Number of workers for data loader')
-parser.add_argument('--pin-memory', default = False, action = 'store_true', help='(default: %(default)d) Pin memory for data loader')
+parser.add_argument('--pin-memory', default = False, action = 'store_true', help='(default: False) Pin memory for data loader')
 
 # model related
 parser.add_argument('--hidden-layers', nargs = '+', type = int, help='Size of the hidden layers')
@@ -43,6 +43,11 @@ parser.add_argument('--meta', type = float, nargs = '+', help='Metaplasticity co
 parser.add_argument('--decay', type = float, default = 0.0, help='(default: %(default)f) Weight decay')
 parser.add_argument('--gamma', type = float, default = 1.0, help='(default: %(default)f) Dividing factor for lr decay')
 parser.add_argument('--epochs-per-task', type = int, default = 5, help='(default: %(default)d) Number of epochs per tasks')
+
+# defensive quantization
+parser.add_argument('--dq',  default = False, action = 'store_true', help='(default: False) Include Lipschitz regularization from Defensive Quantization paper)')
+parser.add_argument('--dq-beta', type = float, default = 3e-4, help='(default: %(default)f) Defensive quantization regularization scaling factor')
+parser.add_argument('--dq-norm', default = None, help='(default: None, i.e. Frobenius norm) Defensive quantization norm type (for the `ord` in `torch.linalg.norm`)')
 
 # output related
 parser.add_argument('--save-path', type = str, default = './data/output', help='(default: %(default)s) Save data path')
