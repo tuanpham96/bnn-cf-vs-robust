@@ -741,7 +741,6 @@ def DQ_loss(model, dq_beta, norm_ord=None):
     # unclear which norm the paper refers to here, so use Frob norm (default) for now
     losses = 0
     def loss_dq(W): # || W^T x W - I ||^2
-<<<<<<< HEAD
         WtxW = W.t() @ W
         I_w = torch.ones_like(WtxW)
         return torch.linalg.norm(WtxW - I_w, norm_ord)**2
@@ -756,15 +755,6 @@ def DQ_loss(model, dq_beta, norm_ord=None):
             losses += loss_dq(p.org.view(p.shape[0], -1))
         else:
             losses += loss_dq(p.data.view(p.shape[0], -1))
-=======
-        return torch.linalg.norm(W.t() @ W - torch.eye(W.shape[1]), norm_ord)**2
-    for n, p in model.named_parameters():
-        # only process weights, i.e. things have hidden (org attrib)
-        if not hasattr(p,'org'): continue
-        # if 2D: linear layer weight matrix
-        # if conv2d weight: [c_out, c_in, k, k] <- view as [c_out, c_in * k * k]
-        losses += loss_dq(p.org.view(p.shape[0], -1))
->>>>>>> adversarialattacks
     return losses * dq_beta/2
 
 def switch_sign_induced_loss_increase(model, loader, bins = 10, sample = 100, layer = 2, num_run = 1, verbose = False):

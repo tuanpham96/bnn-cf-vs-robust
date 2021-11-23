@@ -44,23 +44,16 @@ parser.add_argument('--decay', type = float, default = 0.0, help='(default: %(de
 parser.add_argument('--gamma', type = float, default = 1.0, help='(default: %(default)f) Dividing factor for lr decay')
 parser.add_argument('--epochs-per-task', type = int, default = 5, help='(default: %(default)d) Number of epochs per tasks')
 
-<<<<<<< HEAD
 # defensive quantization regularization
-=======
-# defensive quantization
->>>>>>> adversarialattacks
 parser.add_argument('--dq',  default = False, action = 'store_true', help='(default: False) Include Lipschitz regularization from Defensive Quantization paper)')
 parser.add_argument('--dq-beta', type = float, default = 3e-4, help='(default: %(default)f) Defensive quantization regularization scaling factor')
 parser.add_argument('--dq-norm', default = None, help='(default: None, i.e. Frobenius norm) Defensive quantization norm type (for the `ord` in `torch.linalg.norm`)')
 
-<<<<<<< HEAD
 # testing corruption and adversarial
 parser.add_argument('--test-corruption', default = False, action = 'store_true', help='(default: False) Test for natural corruptions (the corrupted data paths defined in meta-data file')
 parser.add_argument('--test-adversarial', default = False, action = 'store_true', help='(default: False) Test for adversarial attacks (the attack types (from `foolbox`) and `epsilons` must be defined in meta-data file)')
 parser.add_argument('--skip-training', default = False, action = 'store_true', help='(default: False) Skip meta-plasticity training (only turn this on if want to test corruption and attacks)')
 
-=======
->>>>>>> adversarialattacks
 # output related
 parser.add_argument('--save-path', type = str, default = './data/output', help='(default: %(default)s) Save data path')
 parser.add_argument('--output-name', type = str, default = '', help='(default: %(default)s) Name of the output directory to be concat to `--save-path`')
