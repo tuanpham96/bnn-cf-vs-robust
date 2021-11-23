@@ -44,10 +44,15 @@ parser.add_argument('--decay', type = float, default = 0.0, help='(default: %(de
 parser.add_argument('--gamma', type = float, default = 1.0, help='(default: %(default)f) Dividing factor for lr decay')
 parser.add_argument('--epochs-per-task', type = int, default = 5, help='(default: %(default)d) Number of epochs per tasks')
 
-# defensive quantization
+# defensive quantization regularization
 parser.add_argument('--dq',  default = False, action = 'store_true', help='(default: False) Include Lipschitz regularization from Defensive Quantization paper)')
 parser.add_argument('--dq-beta', type = float, default = 3e-4, help='(default: %(default)f) Defensive quantization regularization scaling factor')
 parser.add_argument('--dq-norm', default = None, help='(default: None, i.e. Frobenius norm) Defensive quantization norm type (for the `ord` in `torch.linalg.norm`)')
+
+# testing corruption and adversarial
+parser.add_argument('--test-corruption', default = False, action = 'store_true', help='(default: False) Test for natural corruptions (the corrupted data paths defined in meta-data file')
+parser.add_argument('--test-adversarial', default = False, action = 'store_true', help='(default: False) Test for adversarial attacks (the attack types (from `foolbox`) and `epsilons` must be defined in meta-data file)')
+parser.add_argument('--skip-training', default = False, action = 'store_true', help='(default: False) Skip meta-plasticity training (only turn this on if want to test corruption and attacks)')
 
 # output related
 parser.add_argument('--save-path', type = str, default = './data/output', help='(default: %(default)s) Save data path')
@@ -107,6 +112,7 @@ model_path.mkdir(parents=True, exist_ok=True)
 exp_conf_path    = main_path / 'exp-config.yaml'
 forget_perf_path = main_path / 'perf_forget.csv'
 robust_perf_path = main_path / 'perf_robust.csv'
+attack_perf_path = main_path / 'perf_attack.csv'
 
 # ------------------- SAVE EXPERIMENT CONFIG -------------------
 
@@ -129,6 +135,19 @@ task_paths = task_metadata['task_paths']
 task_ids = task_metadata['task_ids']
 num_tasks = task_metadata['num_tasks']
 
+# ------------------- PARSE FOOLBOX ADVERSARIAL ATTACKS -------------------
+
+if args.test_adversarial:
+    try:
+        import foolbox as fb
+        import foolbox.attacks as fa
+        import eagerpy as ep
+        from pmnist_robustness_data_utils import get_foolbox_attacks
+    except:
+        print('Please install `foolbox` to proceed as you indicate to test adversarial attacks')
+
+    fb_attacks, attack_eps = get_foolbox_attacks(task_metadata['adversarial_attacks'], sep_id='-')
+
 # ------------------- DATA LOADER SETUP -------------------
 
 common_dload_args = dict(
@@ -142,7 +161,7 @@ transform = torchvision.transforms.Compose([
     torchvision.transforms.Normalize(mean=(0.0,), std=(1.0,))
 ])
 
-def load_dataset(task_id, data_type, data_action=None):
+def load_dataset(task_id, data_type, data_action=None, batch_size=None):
     if data_action:
         data_key = '%s::%s' %(data_type, data_action)
         shuffle_on = data_action == 'train'
@@ -153,7 +172,14 @@ def load_dataset(task_id, data_type, data_action=None):
     data_prefix = task_paths[task_id][data_key]['prefix']
 
     dset = TaskDataSet(data_prefix, transform=transform)
-    data_loader = torch.utils.data.DataLoader(dset, shuffle=shuffle_on, **common_dload_args)
+
+    dload_args = dict(**common_dload_args)
+    if batch_size: # change batch_size if provided, useful for testing/inference
+        if batch_size == -1: # use all at once
+            batch_size = len(dset)
+        dload_args['batch_size'] = batch_size
+
+    data_loader = torch.utils.data.DataLoader(dset, shuffle=shuffle_on, **dload_args)
     return data_loader
 
 train_loader_list = []
@@ -227,94 +253,96 @@ child_tqdm_args = dict(
     leave=False,
     ncols=80
 )
+
 # ------------------- CATASTROPHIC FORGETTING - METAPLAST TRAINING -------------------
 
-print('>>>>>>>>>>>>>>>>>>>> METAPLAST TRAINING <<<<<<<<<<<<<<<<<<\n')
+if not args.skip_training:
+    print('>>>>>>>>>>>>>>>>>>>> METAPLAST TRAINING <<<<<<<<<<<<<<<<<<\n')
 
-glob_epoch = 1 # global epoch number
+    glob_epoch = 1 # global epoch number
 
-for task_ind, task_data in tqdm(enumerate(train_loader_list), desc='MAIN TRAIN', **parent_tqdm_args):
-    # OPTIMIZER for each task
-    optimizer = Adam_meta(model.parameters(), lr = lrs[task_ind], meta = meta, weight_decay = args.decay)
-    task_id = task_ids[task_ind]
+    for task_ind, task_data in tqdm(enumerate(train_loader_list), desc='MAIN TRAIN', **parent_tqdm_args):
+        # OPTIMIZER for each task
+        optimizer = Adam_meta(model.parameters(), lr = lrs[task_ind], meta = meta, weight_decay = args.decay)
+        task_id = task_ids[task_ind]
 
-    # --- TRAIN AND TEST MODEL ---
-    for epoch in tqdm(range(1, epochs+1), desc='+ Train ' + task_id, **child_tqdm_args):
+        # --- TRAIN AND TEST MODEL ---
+        for epoch in tqdm(range(1, epochs+1), desc='+ Train ' + task_id, **child_tqdm_args):
 
-        # TRAIN MODEL
-        t0 = time.time()
-        train(model, task_data, task_ind, optimizer, device, args)
-        t1 = time.time()
-
-        train_accuracy, train_loss = test(model, task_data, device)
-        train_time = t1 - t0
-
-        # SAVE GENERAL
-        data['task_order'].append(task_ind+1)
-        data['task_id'].append(task_id)
-        data['task_epoch'].append(epoch)
-        data['glob_epoch'].append(glob_epoch)
-        glob_epoch += 1
-
-        data['lr'].append(optimizer.param_groups[0]['lr'])
-        data['meta'].append(meta)
-
-        # SAVE TRAIN PERFORMANCE
-        data['train_acc'].append(train_accuracy)
-        data['train_loss'].append(train_loss)
-        data['train_time'].append(train_time)
-
-        print('\n\t - TRAIN[%s] | epoch = %02d | acc = %.2f %% | loss = %.4f | time = %.2f min' \
-              %(task_id, epoch, train_accuracy, train_loss, train_time/60.0))
-
-        # save batchnorm states
-        current_bn_state = model.save_bn_states()
-
-        # TESTING OTHER TASKS
-        for other_task_ind, other_task_data in enumerate(test_loader_list):
-
-            # load batchnorm states according to past or current task
-            bnstate2load = current_bn_state if other_task_ind>=task_ind else bn_states[other_task_ind]
-            model.load_bn_states(bnstate2load)
-
-            # TEST FOR OTHER TASK
+            # TRAIN MODEL
             t0 = time.time()
-            test_accuracy, test_loss = test(model, other_task_data, device)
+            train(model, task_data, task_ind, optimizer, device, args)
             t1 = time.time()
-            test_time = t1 - t0
 
-            # SAVE TEST PERFORMANCE
-            other_task_id = task_ids[other_task_ind]
-            data['test_acc::'  + other_task_id].append(test_accuracy)
-            data['test_loss::' + other_task_id].append(test_loss)
-            data['test_time::' + other_task_id].append(test_time)
+            train_accuracy, train_loss = test(model, task_data, device)
+            train_time = t1 - t0
 
-            print('\t - TEST[%s] | epoch = %02d | acc = %.2f %% | loss = %.4f | time = %.2f min' \
-                  %(other_task_id, epoch, test_accuracy, test_loss, test_time/60.0))
+            # SAVE GENERAL
+            data['task_order'].append(task_ind+1)
+            data['task_id'].append(task_id)
+            data['task_epoch'].append(epoch)
+            data['glob_epoch'].append(glob_epoch)
+            glob_epoch += 1
 
-        # load back to current batchnorm states to continue training
-        model.load_bn_states(current_bn_state)
+            data['lr'].append(optimizer.param_groups[0]['lr'])
+            data['meta'].append(meta)
 
-    # --- AT THE END OF EACH TASK ---
-    # SAVE PLOT PARAMETERS
-    plot_parameters(model, save=True, save_path=str(plot_path / task_id))
+            # SAVE TRAIN PERFORMANCE
+            data['train_acc'].append(train_accuracy)
+            data['train_loss'].append(train_loss)
+            data['train_time'].append(train_time)
 
-    # SAVE MODEL STATES
-    torch.save(dict(
-        model_args      = model_args,
-        model_states    = model.state_dict(),
-        task_order      = task_ind+1,
-        task_id         = task_id,
-        task_epoch      = epoch,
-        glob_epoch      = glob_epoch,
-    ), model_path / (task_id + '.pt'))
+            print('\n\t - TRAIN[%s] | epoch = %02d | acc = %.2f %% | loss = %.4f | time = %.2f min' \
+                %(task_id, epoch, train_accuracy, train_loss, train_time/60.0))
 
-    # append to atchnorm stats
-    bn_states.append(current_bn_state)
+            # save batchnorm states
+            current_bn_state = model.save_bn_states()
 
-# SAVE PERFORMANCE FOR CATASTROPHIC FORGETTING PROGRESS
-df_data = pd.DataFrame(data)
-df_data.to_csv(forget_perf_path, index = False)
+            # TESTING OTHER TASKS
+            for other_task_ind, other_task_data in enumerate(test_loader_list):
+
+                # load batchnorm states according to past or current task
+                bnstate2load = current_bn_state if other_task_ind>=task_ind else bn_states[other_task_ind]
+                model.load_bn_states(bnstate2load)
+
+                # TEST FOR OTHER TASK
+                t0 = time.time()
+                test_accuracy, test_loss = test(model, other_task_data, device)
+                t1 = time.time()
+                test_time = t1 - t0
+
+                # SAVE TEST PERFORMANCE
+                other_task_id = task_ids[other_task_ind]
+                data['test_acc::'  + other_task_id].append(test_accuracy)
+                data['test_loss::' + other_task_id].append(test_loss)
+                data['test_time::' + other_task_id].append(test_time)
+
+                print('\t - TEST[%s] | epoch = %02d | acc = %.2f %% | loss = %.4f | time = %.2f min' \
+                    %(other_task_id, epoch, test_accuracy, test_loss, test_time/60.0))
+
+            # load back to current batchnorm states to continue training
+            model.load_bn_states(current_bn_state)
+
+        # --- AT THE END OF EACH TASK ---
+        # SAVE PLOT PARAMETERS
+        plot_parameters(model, save=True, save_path=str(plot_path / task_id))
+
+        # SAVE MODEL STATES
+        torch.save(dict(
+            model_args      = model_args,
+            model_states    = model.state_dict(),
+            task_order      = task_ind+1,
+            task_id         = task_id,
+            task_epoch      = epoch,
+            glob_epoch      = glob_epoch,
+        ), model_path / (task_id + '.pt'))
+
+        # append to atchnorm stats
+        bn_states.append(current_bn_state)
+
+    # SAVE PERFORMANCE FOR CATASTROPHIC FORGETTING PROGRESS
+    df_data = pd.DataFrame(data)
+    df_data.to_csv(forget_perf_path, index = False)
 
 # ------------------- ROBUSTNESSS TESTING -------------------
 
@@ -322,49 +350,119 @@ df_data.to_csv(forget_perf_path, index = False)
 del train_loader_list
 del test_loader_list
 
-# create data
-data = dict(
-    source_task     = [],
-    data_key        = [],
-    train_phase     = [],
-    test_acc        = [],
-    test_loss       = [],
-    test_time       = []
-)
+if args.test_corruption:
 
-# only exclude original::train for testing
-perturb_keys = [k for k in task_paths[task_ids[0]].keys() if k != 'original::train']
-perturb_data_src = list(itertools.product(task_ids, perturb_keys))
+    # create data
+    data = dict(
+        source_task     = [], # source of the test data for corruption
+        data_key        = [], # type of corruption
+        train_phase     = [], # training phase in term of which task
+        test_acc        = [],
+        test_loss       = [],
+        test_time       = []
+    )
 
-print('>>>>>>>>>>>>>>>>>>>> ROBUSTNESSS TESTING <<<<<<<<<<<<<<<<<<\n')
+    # only exclude original::train for testing
+    perturb_keys = [k for k in task_paths[task_ids[0]].keys() if k != 'original::train']
+    perturb_data_src = list(itertools.product(task_ids, perturb_keys))
 
-for source_task, data_key in tqdm(perturb_data_src, desc='CORRUPTED DATA', **parent_tqdm_args):
-    corrupted_dataloader = load_dataset(source_task, data_key)
+    print('>>>>>>>>>>>>>>>>>>>> ROBUSTNESSS TESTING <<<<<<<<<<<<<<<<<<\n')
 
-    for train_phase in task_ids:
-        # LOAD MODEL FOR EACH TRAINING PHASE
-        ckpt = torch.load(model_path / (train_phase + '.pt'))
+    for source_task, data_key in tqdm(perturb_data_src, desc='CORRUPTED DATA', **parent_tqdm_args):
+        corrupted_dataloader = load_dataset(source_task, data_key)
 
-        model.load_state_dict(ckpt['model_states'])
-        model.eval()
+        for train_phase in task_ids:
+            # LOAD MODEL FOR EACH TRAINING PHASE
+            ckpt = torch.load(model_path / (train_phase + '.pt'))
 
-        # TEST PERFORMANCE
-        t0 = time.time()
-        test_acc, test_loss = test(model, corrupted_dataloader, device)
-        t1 = time.time()
-        test_time = t1 - t0
+            model.load_state_dict(ckpt['model_states'])
+            model.eval()
 
-        # SAVE DATA
-        data['source_task'].append(source_task)
-        data['data_key'].append(data_key)
-        data['train_phase'].append(train_phase)
-        data['test_acc'].append(test_acc)
-        data['test_loss'].append(test_loss)
-        data['test_time'].append(test_time)
-        print('\n source = %s | type = %s | train_at = %s || acc = %.2f %% | loss = %.4f | time = %.2f min' \
-              %(source_task, data_key, train_phase, test_acc, test_loss, test_time/60.0))
+            # TEST PERFORMANCE
+            t0 = time.time()
+            test_acc, test_loss = test(model, corrupted_dataloader, device)
+            t1 = time.time()
+            test_time = t1 - t0
 
-df_data = pd.DataFrame(data)
-df_data.to_csv(robust_perf_path, index = False)
+            # SAVE DATA
+            data['source_task'].append(source_task)
+            data['data_key'].append(data_key)
+            data['train_phase'].append(train_phase)
+            data['test_acc'].append(test_acc)
+            data['test_loss'].append(test_loss)
+            data['test_time'].append(test_time)
+            print('\n source = %s | type = %s | train_at = %s || acc = %.2f %% | loss = %.4f | time = %.2f min' \
+                %(source_task, data_key, train_phase, test_acc, test_loss, test_time/60.0))
+
+    df_data = pd.DataFrame(data)
+    df_data.to_csv(robust_perf_path, index = False)
+
+    del corrupted_dataloader
+
+# ------------------- ADVERSARIAL ATTACKS  -------------------
+
+if args.test_adversarial:
+
+    # create data
+    data = dict(
+        source_task     = [], # source of the test data for corruption
+        data_key        = [], # type of adversarial attacks from foolbox
+        train_phase     = [], # training phase in term of which task
+        epsilon         = [], # attack epsilons
+        test_acc        = [],
+        test_time       = []
+    )
+
+    perturb_keys = list(fb_attacks.keys())
+    perturb_data_src = list(itertools.product(task_ids, perturb_keys))
+
+    print('>>>>>>>>>>>>>>>>>>>> ADVERSARIAL ATTACKS <<<<<<<<<<<<<<<<<<\n')
+
+    print('EPSILONS = ', attack_eps)
+    num_att_eps = len(attack_eps)
+
+    for source_task, raw_data_key in tqdm(perturb_data_src, desc='ADVERS ATTACKS', **parent_tqdm_args):
+
+        data_key = 'adversarial::' + raw_data_key # to be consistent with the formatting above
+        attack_fn = fb_attacks[raw_data_key]
+
+        # load all original test data
+        test_loader = load_dataset(source_task, 'original', 'test', -1)
+        images, labels = next(iter(test_loader))
+        images, labels = ep.astensors(images.to(device), labels.to(device))
+
+        for train_phase in task_ids:
+            # LOAD MODEL FOR EACH TRAINING PHASE
+            ckpt = torch.load(model_path / (train_phase + '.pt'))
+
+            model.load_state_dict(ckpt['model_states'])
+            model.eval()
+
+            # Wrap with Foolbox
+            fmodel = fb.PyTorchModel(model, bounds=(0,1), device=device)
+
+            # TEST PERFORMANCE DUE TO ATTACK
+            t0 = time.time()
+            _, _, attack_success = attack_fn(fmodel, images, labels, epsilons=attack_eps)
+            t1 = time.time()
+            test_time = t1 - t0
+
+            attack_success = attack_success.numpy()
+            assert attack_success.shape == (num_att_eps, len(images)) and attack_success.dtype == np.bool
+            test_acc = 100.0 * (1.0 - attack_success.mean(axis=-1))
+            test_acc = test_acc.round(4)
+
+            # SAVE DATA
+            data['source_task'].extend([source_task]*num_att_eps)
+            data['data_key'].extend([data_key]*num_att_eps)
+            data['train_phase'].extend([train_phase]*num_att_eps)
+            data['test_time'].extend([test_time]*num_att_eps)
+            data['test_acc'].extend(list(test_acc))
+            data['epsilon'].extend(list(attack_eps))
+            print('\n source = %s | type = %s | train_at = %s || time = %.2f min | acc (%%) = ' \
+                %(source_task, data_key, train_phase, test_time/60.0), list(test_acc))
+
+    df_data = pd.DataFrame(data)
+    df_data.to_csv(attack_perf_path, index = False)
 
 print('\n>>>>>>>>>>>>>>>>>>>> FINISHED <<<<<<<<<<<<<<<<<<\n')
