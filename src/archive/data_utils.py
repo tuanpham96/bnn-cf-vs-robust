@@ -115,19 +115,22 @@ def relabel(label):
 vrelabel = np.vectorize(relabel)
 
 
-def process_cifar10(subset):
-
+def process_cifar10(subset): # animals_shot_noise
+    test_dataset_dir = 'cifar10_features_dataset'
+    if len(subset.split('_', maxsplit=1)) > 1:
+        corruption = subset.split('_', maxsplit=1)[1]
+        test_dataset_dir = 'cifar10_features_dataset_' + corruption
     cifar_X_train = torch.load('cifar10_features_dataset/train.pt').cpu().numpy()
     cifar_Y_train = torch.load('cifar10_features_dataset/train_targets.pt').cpu().numpy()
-    cifar_X_test = torch.load('cifar10_features_dataset/test.pt').cpu().numpy()
-    cifar_Y_test = torch.load('cifar10_features_dataset/test_targets.pt').cpu().numpy()
+    cifar_X_test = torch.load(f'{test_dataset_dir}/test.pt').cpu().numpy()
+    cifar_Y_test = torch.load(f'{test_dataset_dir}/test_targets.pt').cpu().numpy()
 
     cifar_Y_train = vrelabel(cifar_Y_train)
     cifar_Y_test = vrelabel(cifar_Y_test)
 
-    if subset=='animals':
+    if 'animals' in subset:
         partition = np.vectorize(lambda l: l < 5)
-    elif subset=='vehicles':
+    elif 'vehicles' in subset:
         partition = np.vectorize(lambda l: l >= 5)
     else:
         raise('error unsuported subset')
@@ -152,7 +155,12 @@ def process_cifar10(subset):
 
 
 
-def process_cifar100(n_subset):
+def process_cifar100(task, n_subset): # cifar100_shot_noise, 20
+    test_dataset_dir = 'cifar100_features_dataset'
+    if len(task.split('_', maxsplit=1)) > 1:
+        corruption = task.split('_', maxsplit=1)[1]
+        test_dataset_dir = 'cifar100_features_dataset_' + corruption
+
     subset_size = 100//n_subset
 
     train_loader_list = []
@@ -161,8 +169,8 @@ def process_cifar100(n_subset):
 
     cifar100_X_train = torch.load('cifar100_features_dataset/train.pt').cpu().numpy()
     cifar100_Y_train = torch.load('cifar100_features_dataset/train_targets.pt').cpu().numpy()
-    cifar100_X_test = torch.load('cifar100_features_dataset/test.pt').cpu().numpy()
-    cifar100_Y_test = torch.load('cifar100_features_dataset/test_targets.pt').cpu().numpy()
+    cifar100_X_test = torch.load(f'{test_dataset_dir}/test.pt').cpu().numpy()
+    cifar100_Y_test = torch.load(f'{test_dataset_dir}/test_targets.pt').cpu().numpy()
 
     for k in range(n_subset):
         partition = np.vectorize(lambda l: ((l < (k+1)*subset_size) and (l >= k*subset_size)) )

@@ -198,7 +198,7 @@ def pixelate(x, severity=1):
     x = PILImage.fromarray(x.squeeze())
     x = x.resize((ch, cw), PILImage.BOX)
     x = x.resize((h, w), PILImage.BOX)
-    return np.array(x)
+    np.array(np.array(x)/255.0)
 
 
 def motion_blur(x, severity=1):

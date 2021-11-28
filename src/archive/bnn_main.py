@@ -92,13 +92,13 @@ for idx, task in enumerate(args.task_sequence):
         test_loader_list.append(test_loader)
         dset_train_list.append(dset_train)
         task_names.append(task+str(idx+1))
-    elif task == 'animals':
+    elif 'animals' in task:
         animals_train_loader, animals_test_loader, animals_dset_train = process_cifar10(task)
         train_loader_list.append(animals_train_loader)
         test_loader_list.append(animals_test_loader)
         dset_train_list.append(animals_dset_train)
         task_names.append('animals')
-    elif task == 'vehicles':
+    elif 'vehicles' in task:
         vehicles_train_loader, vehicles_test_loader, vehicles_dset_train = process_cifar10(task)
         train_loader_list.append(vehicles_train_loader)
         test_loader_list.append(vehicles_test_loader)
@@ -106,7 +106,7 @@ for idx, task in enumerate(args.task_sequence):
         task_names.append('vehicles')
     elif 'cifar100' in task:
         n_subset = int(task.split('-')[1])  # task = "cifar100-20" -> n_subset = 20
-        train_loader_list, test_loader_list, dset_train_list = process_cifar100(n_subset)
+        train_loader_list, test_loader_list, dset_train_list = process_cifar100(task.split('-')[0], n_subset)
         task_names = ['cifar100-'+str(i+1) for i in range(n_subset)]
 
 if args.interleaved:
@@ -127,10 +127,13 @@ archi = [args.in_size] + args.hidden_layers + [args.out_size]
 
 if args.net =='bnn':
     model = BNN( archi, init = args.init, width = args.init_width, norm = args.norm).to(device)
+    model_args = dict(layers_dims=archi, init=args.init, width=args.init_width, norm=args.norm)
 elif args.net =='dnn':
     model = DNN( archi, init = args.init, width = args.init_width).to(device)
+    model_args = dict(layers_dims=archi, init=args.init, width=args.init_width)
 elif args.net=='bcnn':
     model = ConvBNN(init = args.init, width = args.init_width, norm=args.norm).to(device)
+    model_args = dict(init=args.init, width=args.init_width, norm=args.norm)
 
 meta = {}
 for n, p in model.named_parameters():
@@ -257,7 +260,7 @@ for task_idx, task in enumerate(train_loader_list):
         
         model.load_bn_states(current_bn_state)
     
-    plot_parameters(model, path, save=save_result)
+    plot_parameters(model, save_path=path, save=save_result)
     # Uncomment for hidden weight histogram of Fig. 2g,h
     #time = datetime.now().strftime('%H-%M-%S')
     #for l in range(model.hidden_layers + 1):
@@ -294,6 +297,13 @@ time = datetime.now().strftime('%H-%M-%S')
 df_data = pd.DataFrame(data)
 if save_result:
     df_data.to_csv(path +'/'+time+name+'.csv', index = False)
+
+# SAVE MODEL STATES
+    torch.save(dict(
+        model_args      = model_args,
+        model_states    = model.state_dict(),
+        task_epoch      = epoch,
+    ), path / ('_'.join(args.task_sequence) + '.pt'))
 
 # for Fig 5 c, d, e. Only with BNN
 #total_result = switch_sign_induced_loss_increase(model, train_loader_list[0], bins=15, sample=1000, layer=1, num_run=100)    # Fig 5c
