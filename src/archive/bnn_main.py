@@ -299,11 +299,11 @@ if save_result:
     df_data.to_csv(path +'/'+time+name+'.csv', index = False)
 
 # SAVE MODEL STATES
-    torch.save(dict(
-        model_args      = model_args,
-        model_states    = model.state_dict(),
-        task_epoch      = epoch,
-    ), path / ('_'.join(args.task_sequence) + '.pt'))
+torch.save(dict(
+    model_args      = model_args,
+    model_states    = model.state_dict(),
+    task_epoch      = epoch,
+), f'{path}/{"_".join(args.task_sequence)}.pt')
 
 # for Fig 5 c, d, e. Only with BNN
 #total_result = switch_sign_induced_loss_increase(model, train_loader_list[0], bins=15, sample=1000, layer=1, num_run=100)    # Fig 5c
