@@ -213,12 +213,14 @@ if args.beaker:
 if args.si:
     optimizer = torch.optim.Adam(model.parameters(), lr = lr, weight_decay = args.decay)
 
+glob_epoch = 1 # global epoch number
+
 for task_idx, task in enumerate(train_loader_list):
     if not(args.beaker or args.si):
         optimizer = Adam_meta(model.parameters(), lr = lrs[task_idx], meta = meta, weight_decay = args.decay)
            
     for epoch in range(1, epochs+1):
-        
+        glob_epoch += 1
         if args.ewc:
             train(model, task, task_idx, optimizer, device, args, prev_cons=previous_tasks_fisher, 
                     prev_params=previous_tasks_parameters) 
@@ -261,6 +263,18 @@ for task_idx, task in enumerate(train_loader_list):
         model.load_bn_states(current_bn_state)
     
     plot_parameters(model, save_path=path, save=save_result)
+
+    # SAVE MODEL STATES
+    torch.save(dict(
+        model_args=model_args,
+        model_states=model.state_dict(),
+        task_epoch=epoch,
+        task_order=task_idx + 1,
+        task_id=task_idx,
+        glob_epoch=glob_epoch,
+    ), f'{path}/{"_".join(args.task_sequence)}_{task_idx}.pt')
+
+
     # Uncomment for hidden weight histogram of Fig. 2g,h
     #time = datetime.now().strftime('%H-%M-%S')
     #for l in range(model.hidden_layers + 1):
@@ -297,13 +311,6 @@ time = datetime.now().strftime('%H-%M-%S')
 df_data = pd.DataFrame(data)
 if save_result:
     df_data.to_csv(path +'/'+time+name+'.csv', index = False)
-
-# SAVE MODEL STATES
-torch.save(dict(
-    model_args      = model_args,
-    model_states    = model.state_dict(),
-    task_epoch      = epoch,
-), f'{path}/{"_".join(args.task_sequence)}.pt')
 
 # for Fig 5 c, d, e. Only with BNN
 #total_result = switch_sign_induced_loss_increase(model, train_loader_list[0], bins=15, sample=1000, layer=1, num_run=100)    # Fig 5c
