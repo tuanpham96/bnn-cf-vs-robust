@@ -5,6 +5,10 @@ import numpy as np
 import torch
 import torchvision
 
+try:
+    import foolbox.attacks as fa
+except:
+    pass
 
 from tqdm.notebook import tqdm
 
@@ -34,11 +38,11 @@ class TaskDataSet(torch.utils.data.Dataset):
 
 def create_data_path(root_path, task_id, data_type, data_action):
     # task_id: 'task-01', 'task-02', 'task-03', ...
-    # data_type: 'original', 'corruption', 'adversarial'
+    # data_type: 'original', 'corruption'
     # data_action:
     #   - if 'original' -> 'train', 'test'
     #   - if 'corruption' -> 'gaussian_blur', ...
-    #   - if 'adversarial' (TBD holder) -> 'fgsm', ...
+    # currently don't accept adversarial since they cannot always be pregenerated
 
     data_path = (root_path / task_id / data_type)
     data_path.mkdir(parents=True, exist_ok=True)
@@ -116,3 +120,43 @@ def create_and_save_datasets(mnist_data_path, root_path, task_id, perm=False,
         info[data_key] = save_dataset(images, labels, data_prefix)
 
     return info
+
+def get_foolbox_attacks(attack_obj, sep_id='-'):
+    # see the available ones here: https://foolbox.readthedocs.io/en/stable/modules/attacks.html#foolbox.attacks.LinfFastGradientAttack
+    # note: not all would work
+    # example: dict(attacks = ['FGSM', # use default args
+    #                         {'DDNAttack': {'steps': 20}}, # additional arguments
+    #                         {'LinfPGD-1': {'steps': 10}}, # if there are duplicates of same function but different args, ID them with '-'
+    #                         {'LinfPGD-2': {'steps': 40}}],
+    #               epsilons = [0.0, 0.001, 0.01, 0.1]) # define epsilons
+
+    attack_list = attack_obj['attacks']
+    epsilons = np.array(attack_obj['epsilons'])
+    attacks = dict()
+
+    for atck in attack_list:
+
+        if isinstance(atck, str):
+            atck_name, atck_args = atck, dict()
+        elif isinstance(atck, dict):
+            assert len(atck) == 1
+            atck_name, atck_args = list(atck.items())[0]
+        else:
+            raise Exception('The argument is invalid (only str or dict is accepted')
+
+        if atck_name in attacks:
+            raise('There are duplicates of "%s", please rename like "FGSM" and "FGSM-1"' %(atck_name))
+
+        atck_fa_name = atck_name.split(sep_id)[0]
+
+        atck_fn = None
+        try:
+            atck_fn = getattr(fa, atck_fa_name)(**atck_args)
+        except:
+            print('The "%s" attack is not a valid function in `foolbox.attacks` or the arguments are not correctly parsed' %(atck_name))
+
+        attacks[atck_name] = atck_fn
+
+    print('The functions for adversarial attacks are: ')
+    print(attacks)
+    return attacks, epsilons

@@ -577,6 +577,9 @@ def train(model, train_loader, current_task_index, optimizer, device, args,
         else:
             total_loss = loss
 
+        if args.dq:
+            total_loss += DQ_loss(model, args.dq_beta, args.dq_norm)
+
         total_loss.backward()
 
         # This loop is for BNN parameters having 'org' attribute
@@ -733,7 +736,26 @@ def SI_loss(model, omega, prev_params, si_lambda):
                 losses.append((omega[n] * (p - prev_params[n])**2).sum())
     return si_lambda*sum(losses)
 
+def DQ_loss(model, dq_beta, norm_ord=None):
+    # source: https://arxiv.org/pdf/1904.08444.pdf
+    # unclear which norm the paper refers to here, so use Frob norm (default) for now
+    losses = 0
+    def loss_dq(W): # || W^T x W - I ||^2
+        WtxW = W.t() @ W
+        I_w = torch.ones_like(WtxW)
+        return torch.linalg.norm(WtxW - I_w, norm_ord)**2
+    for n, p in model.named_parameters():
+        # skip bias or batchnorm params
+        if (n.find('bias') != -1) or (len(p.size()) == 1): continue
 
+        # only process weights, if weight has org, process org instead
+        # if 2D: linear layer weight matrix
+        # if conv2d weight: [c_out, c_in, k, k] <- view as [c_out, c_in * k * k]
+        if hasattr(p,'org'):
+            losses += loss_dq(p.org.view(p.shape[0], -1))
+        else:
+            losses += loss_dq(p.data.view(p.shape[0], -1))
+    return losses * dq_beta/2
 
 def switch_sign_induced_loss_increase(model, loader, bins = 10, sample = 100, layer = 2, num_run = 1, verbose = False):
     """
