@@ -1,5 +1,5 @@
 outs:
-- md5: 750acd63a127093067c3b49fa1493abc.dir
-  size: 2077152
-  nfiles: 63
+- md5: 255b6ece06bdbeef506432f9fac2095f.dir
+  size: 38775584
+  nfiles: 1046
   path: exp0-pmnist-paper-rerun
