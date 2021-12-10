@@ -1,4 +1,4 @@
-\documentclass[manuscript,screen,review]{acmart}
+\documentclass[manuscript,screen,review=false, nonacm]{acmart}
 
 \AtBeginDocument{%
   \providecommand\BibTeX{{%
@@ -6,7 +6,7 @@
 
 
 \def\@copyrightspace{\relax}
-
+\usepackage{float}
 %%\citestyle{acmauthoryear}
 
 \begin{document}
@@ -41,165 +41,221 @@
 }
 
 
-%% TO-DO
-\begin{abstract}
-  
-\end{abstract}
-
-
 \keywords{neural networks, catastrophic forgetting, continual learning, robustness, natural corruptions, adversarial attacks}
 
 \maketitle
 
 \section{Introduction}
-Developing a deep learning model, for example in image classification, is not only about achieving the best classification accuracy. Even with increasing computational power, there are multiple issues that also need to be solved, including - to name a few - fast inference time, manageable memory size, continual learning and robustness to data/model corruption. An attractive solution for fast computation, efficient power consumption and potentially easier hardware implementation is binary neural networks (BNN) \cite{DBLP:journals/corr/CourbariauxB16}, in which only the signs of the model’s hidden weights are utilized during inference. 
+Developing a deep learning model, for example, in image classification, is not only about achieving the best classification accuracy. Even with increasing computational power, multiple issues also need to be solved, including - to name a few - fast inference time, manageable memory size, continual learning, and robustness to data/model corruption. An attractive solution for fast computation, efficient power consumption, and potentially more straightforward hardware implementation is binary neural networks (BNN) \cite{DBLP:journals/corr/CourbariauxB16}, in which only the signs of the model’s hidden weights are utilized during inference. 
 
-A recent study takes inspiration from biological metaplasticity to solve catastrophic forgetting (CF) problems for continual learning problems for BNN \cite{Laborieux_Ernoult_Hirtzlin_Querlioz_2021}. More specifically, by creating a form of multiplicative gating during learning for hidden weights to represent weight consolidation, they are able to solve the permuted-MNIST task, sequential learning with CIFAR-10/100 dataset, and stream learning with these datasets. This approach shares certain similarities with another study in regular neural networks, also inspired by neuroscience literature, which takes into account (a) weight stabilization based on task importance, combined with (b) context-dependent gating allowing for more sparse, non-overlapping population activations, to facilitate learning and remembering a large number of tasks \cite{Masse_2018}. 
+A recent study takes inspiration from biological metaplasticity to solve catastrophic forgetting (CF) problems for continual learning in BNN \cite{Laborieux_Ernoult_Hirtzlin_Querlioz_2021}. More specifically, by creating a form of multiplicative gating during learning for hidden weights to represent weight consolidation (\autoref{fig:fig1}), they are able to solve the permuted-MNIST task, sequential learning with CIFAR-10/100 dataset, and stream learning with these datasets. This approach shares certain similarities with another study in regular neural networks, also inspired by neuroscience literature, which takes into account (a) weight stabilization based on task importance, combined with (b) context-dependent gating allowing for more sparse, non-overlapping population activations, to facilitate learning and remembering a large number of tasks \cite{Masse_2018}. 
 
-Back to BNNs, due to such quantization, they can be quite sensitive to corruption, for example data adversarial attacks \cite{Lin_2019} or potential soft errors in hardware accelerators \cite{Khoshavi2020}. Hence, we wish to ask whether previous solutions for CF \cite{Laborieux_Ernoult_Hirtzlin_Querlioz_2021} could further degrade model robustness to data corruption or help ameliorate it.
+Back to BNNs, due to such quantization, they can be quite sensitive to corruption, for example, adversarial data attacks \cite{Lin_2019} or potential soft errors in hardware accelerators \cite{Khoshavi2020}. Hence, we wish to ask whether previous solutions for CF \cite{Laborieux_Ernoult_Hirtzlin_Querlioz_2021} could further degrade model robustness to data corruption or help ameliorate it. 
 
-In conclusion, we propose a plan to (i) replicate the selected studies that tackle the topic of catastrophic forgetting, and (ii) observe whether solutions to avoid CF lead to models that have a higher level of degradation when different types of naturalistic corruption to input data are introduced \cite{Hendrycks_2018}, as well as the potential resulting vulnerability of these models to adversarial attacks \cite{Lin_2019}.
+More specifically, we partially reproduced the results of the metaplasticity training in the permuted MNIST task and the split-class CIFAR task. Then we tested the resulting models under different types of naturalistic corruption to input data are introduced \cite{Hendrycks_2018} and different types of adversarial attacks \cite{rauber2017foolboxnative,rauber2017foolbox,Goodfellow2014-bu}. We also included the Lipschitz regularization term as proposed for defensive quantization \cite{Lin_2019} in the pMNIST task. 
 
-\section{Background}
-Binarized neural networks use binary weights and activations during inference phase and during training phase binary weights and activations are used for computing the gradients. BNNs present an attractive alternative as they significantly reduce the memory size and accesses and replace arithmetic operations with bitwise operations. So this leads to lower power consumption and faster inference. 
+While metaplasticity for BNN was helpful in preventing catastrophic forgetting (pMNIST and split-class CIFAR tasks), the resulting models were not as robust. There appears to be a trade-off for continual learning and robustness, as optimized for the latter would degrade the former, though not in a monotonic manner. Additionally, for the pMNIST task, Lipschitz regularization has mixed effects on model robustness for attacks and corruptions for the pMNIST task.
 
-BNNs are also prone to catastrophic forgetting when trained on multiple tasks sequentially. In this work, we have used BNNs to study different solutions to catastrophic forgetting. One such solution to catastrophic forgetting is inspired by neuroscience. This approach studies how the human brain is able to learn and retain multiple tasks for a longer period of time. Neuroscience literature suggests that the human brain uses hidden weights within each synapse to control the metaplasticity of each synapse. Higher the value of a synapse, the higher its consolidation and less likely to change. Metaplasticity controls the importance of the tasks learnt and provides a solution to catastrophic forgetting. Since BNNs have hidden weights along with binary weights, it makes sense to apply the idea of metaplasticity to BNNs. 
+\section{Methods}
 
-This solution views the hidden weights of the BNNs as metaplastic variables and changes the training algorithm of BNN slightly. As shown in Fig \ref{fig:fig1}., it introduces a function \(f(\text{meta})\) whose behavior depends on the value of meta. The gradient updates are now multiplied by \(f(\text{meta})\) which means \(f(\text{meta})\) now controls plasticity or rigidity of the neuron. For a larger value of meta, the neuron becomes more rigid (less plastic) even for small weight values. The basic intuition behind this idea is, when weights of neurons become larger that means they are important to specific tasks and their values should not be changed by subsequent tasks. 
+The repository is at \url{https://github.com/tuanpham96/bnn-cf-vs-robust/}
+
+\subsection{Binarized neural networks}
+
+BNN uses binary weights and activations during the inference phase and the training phase binary weights, while the hidden weights are used for training. For the pMNIST task, the BNN is an MLP with 2 hidden layers of varying widths. For the split-class CIFAR, the BNN is a CNN pretrained on ImageNet followed by a metaplastic classifier.
+
+\subsection{Metaplasticity}
+
+The metaplasticity algorithm is shown in \autoref{fig:fig1}d (adapted from \cite{Laborieux_Ernoult_Hirtzlin_Querlioz_2021}), which controls how plastic the hidden weights are. The function $f_{\mathrm{meta}}$ controls how much these weights could be trained - higher hidden weights values indicate more consolidation and disallows further changes. The choice of the function is $1 - \mathrm{tanh}(m \cdot W^h)$ similar to the original paper. The values of the metaplasticity variable $m$ (used interchangeably with \texttt{meta} throughout the text) are varied.  
 
 \begin{figure}[ht]
     \centering
-    \includegraphics[width=0.7\textwidth]{figures/report/Fig1.pdf}
-    \caption{Visual representation of \(f(\text{meta})\)}
+    \includegraphics[width=\textwidth]{figures/report/Fig1.pdf}
+    \caption{
+    Metaplasticity in BNN.
+    (\textbf{a}) A typical BNN. 
+    (\textbf{b}) Visual representation of metaplasticity (adapted from \cite{Laborieux_Ernoult_Hirtzlin_Querlioz_2021}).
+    (\textbf{c}) Plot of hidden weights $W^h$ varying by metaplasticity level $m$ (adapted from \cite{Laborieux_Ernoult_Hirtzlin_Querlioz_2021}).
+    (\textbf{d}) Metaplasticity algorithm for BNN (adapted from \cite{Laborieux_Ernoult_Hirtzlin_Querlioz_2021}).
+    }
     \label{fig:fig1}
 \end{figure}
 
-\section{(Initial) Results}
-\subsection{Experiment 0: Replication of BNN training with metaplasticity parameter with permuted MNIST
-}
+\subsection{Lipschitz regularization}
 
-Before applying corruptions to the dataset, we first set out to observe whether the original results from \cite{Laborieux_Ernoult_Hirtzlin_Querlioz_2021} were replicable. So we ran their codes for the multipercepton (MLP) version of the BNN with 2 hidden layers (1024 units each) for different values of the meta hyperparameters: low meta means binary hidden weights are allowed to change easily while high means such weights’ own plasticity is constrained by their magnitude. This is shown in Fig. \ref{fig:fig2}b). Consistent with the paper, higher meta leads to better performance (potentially criticality is around 1.0), in which earlier tasks still perform well. Interestingly, too high value 2.0) might lead to performing not as well (though still good) for the current task - this is basically because high values would bias most changes happening for earlier tasks and would require longer time to learn the current task. Regardless, these results confirm the benefits of the metaplasticity to solve the permuted MNIST task, which is one of the benchmarks for catastrophic forgetting. 
+This was introduced in \cite{Lin_2019} as an additional regularization term for improving the robustness of quantized networks against adversarial attacks: $\mathcal{L}_{\mathrm{DQ}} = \frac{1}{2}\beta_{\mathrm{DQ}}\sum \lVert \mathbf{W}^T\mathbf{W} - \mathbf{I} \rVert^2$. Briefly, this form of regularization keeps the spectral norm of the hidden weights close to 1 to prevent propagated errors to ``explode''. 
 
-Additionally, we also try to replicate the relationship between the sizes of the hidden layers and the performance (Fig. \ref{fig:fig2}c). Contrary to the monotonic trend between the trend and the performance shown in the original paper, we found that large networks could be harmful. For now, we are unsure why. One of the reasons might be that we only allowed for 20 epochs per task for this benchmark while the original paper allowed for 40 epochs. Maybe larger networks require a bit more time to consolidate properly. We might run our training again with the exact same hyperparameter settings to see whether it might just have been some nuances in the settings. 
+\subsection{Tasks}
 
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=\textwidth]{figures/report/Fig2.pdf}
-    \caption{Results of permuted MNIST tasks for the BNNs with metaplasticity training. (a) Example of original (top, task 1) and generated permuted (bottom, after task 1) MNIST dataset. (b) Performance of the BNN (MLP, 2 hidden layers, 1024 units each) with different values of metaplasticity hyperparameter (c) Performance with variations in the number of hidden units per layer with meta = 1.35}
-    \label{fig:fig2}
-\end{figure}
+The pMNIST task consists of 6 permuted MNIST tasks in which the pixel locations are varied from one task to another. The split-class CIFAR(10/100) task consists of 2 (for CIFAR 10) and 6 (for CIFAR 100) subsets of class. The goal is to achieve high performance in all tasks in an incremental learning scenario without access to previous trained task. 
+\subsection{Natural corruption}
 
-\subsection{Experiment 1.1: Metaplasticity-trained BNN in response to natural corruptions to pMNIST tasks 
-}
+The naturalistic corruption transformations are taken from \cite{Hendrycks_2018}. The examples are shown in \autoref{fig:fig2} for the pMNIST task and \autoref{fig:supp1} for the CIFAR task. For the pMNIST dataset, we modified the code te{Hendrycks_2018} to allow for monochrome natural corruptions on. Because some of these transformations are not easily standardized for tensor transformation, these corrupted data sets are pre-generated before training, to save time during testing. Additionally, only one level of severity is tested for all of natural corruptions.
 
 \begin{figure}[ht]
     \centering
-    \includegraphics[width=0.9\textwidth]{figures/report/Fig3.pdf}
-    \caption{Examples of the natural corruptions for MNIST data, plotted with similar color limits}
+    \includegraphics[width=\textwidth]{figures/report/Fig2.png}
+    \caption{Natural corruption applied to the MNIST dataset.}
+    \label{fig:fig2}
+\end{figure}
+
+\subsection{Adversarial attacks}
+
+The adversarial attacks are small perturbations (with varying magnitudes $\epsilon$) applied to these tasks are targeted attacks, taken from \cite{rauber2017foolbox,rauber2017foolboxnative}. Due to the limited time, we were not able to integrate the various attacks to the CIFAR task (only self-coded FGSM). Briefly, the attacks covered here are:
+
+\begin{itemize}
+    \item \texttt{Additive-Uniform-Noise} is not a targeted attack, with only small addtive noise sampled a from uniform distribution. This serves as a reference as this would suffer less damage than the following targeted attacks. 
+    \item \texttt{FGSM} (Fast Gradient Sign Method) \cite{Goodfellow2014-bu} is a white-box attack that applies small perturbations following the sign of the loss gradients for the current input. 
+    \item \texttt{Basic-Iterative-Attack} \cite{Kurakin2016-mb} and \texttt{PGD} (Projected Gradient Descent) \cite{Madry2017-dx} are \texttt{FGSM} extensions that allow for iterative \texttt{FGSM} perturbations with magnitude clipping. The latter starts with additive signs of a sampled Gaussian distribution, in addition to \texttt{FGSM}.
+    \item \texttt{DeepFool-Attack} \cite{Moosavi-Dezfooli2016-qf}  approximates the model linearly and iteratively chooses the pertubation to cross model decision boundary. 
+    \item \texttt{DDN-Attack} (Decoupled Direction and Norm)  \cite{Rony2018-tp} projects the perturbation directions onto an $\epsilon$ sphere and further adjusts the sphere radius depending on whether the generated input is considered adversarial. 
+\end{itemize}
+
+For the pMNIST adversarial evaluation, instead of looking at the monotonically decreasing accuracy-perturbation curves directly, we calculated the normalized area under the curve (\texttt{auc\_log}) of the log-log plot with controled for the minimum accuracy ($a_{\mathrm{min}} = 1e-4$ instead of 0.0) and minimum $\epsilon_{\mathrm{min}}$ (0.9 of the second smallest $\epsilon$ instead of 0.0). In other words: $ \texttt{auc\_log} = \mathrm{trapz}(\log a - \log a_{\mathrm{min}} ,\log \epsilon - \log \epsilon_{\mathrm{min}}) / |\log a_{\mathrm{min}} \times \log  \epsilon_{\mathrm{min}}| $
+
+\section{Results}
+
+\subsection{Permuted MNIST task}
+
+\subsubsection{Replication of BNN training with metaplasticity parameter for the pMNIST task}
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=1.1\textwidth]{figures/report/Fig3.pdf}
+    \caption{
+    Results of permuted MNIST tasks for the BNNs with metaplasticity training for different variations of \texttt{meta} (colors), network widths $H$ (left to right), number of epochs per task (EPT, top to bottom). The leftmost column shows the average time taken to train the model. 
+    }
     \label{fig:fig3}
 \end{figure}
 
-Next we moved on to applying perturbations onto our MNIST and pMNIST datasets after training the BNN models with metaplasticity optimization. First, we modified the code from \cite{Hendrycks_2018} to allow for monochrome natural corruptions on our (p)MNIST datasets. Because some of these transformations are not easily standardized for tensor transformation, these corrupted data sets are pre-generated before training, to save time during testing. The examples of these corruption transformations are shown in Fig. \ref{fig:fig3}. It must be noted that these types of corruption are possibly more realistic when considered with colored images like CIFAR or ImageNet, and the more appropriate benchmarks for catastrophic forgetting coupled with these types of perturbations would be MNIST-FMNIST or split-class CIFAR. Regardless, for now we chose permuted MNIST as our first approach to assess catastrophic forgetting with natural corruptions.
+Before applying corruptions to the dataset, we first set out to observe whether the original results from \cite{Laborieux_Ernoult_Hirtzlin_Querlioz_2021} were replicable. So we ran their codes for the multipercepton (MLP) version of the BNN with 2 hidden layers for different values of the \texttt{meta} hyperparameters: low \texttt{meta} means binary hidden weights are allowed to change easily while high means such weights’ own plasticity is constrained by their magnitude. In addition, we also varied the widths of the hidden layers ($H$) and the number of training epochs per task (EPT), for a total of only 6 tasks. This is shown in \autoref{fig:fig3}). 
 
-The results are shown in Fig. \ref{fig:fig4} for the models at the end of training for different values of meta, tested for the original (last panel) test data sets of all tasks (i.e. task data source) and the natural corruptions shown in Fig. \ref{fig:fig3}. For many different perturbations (for example brightness or shot\_noise, impulse\_noise), at least the inclusion of the metaplasticity training seems to help safeguard the model against the corruption for earlier tasks, though there’s not a consistent trend for the actual magnitude of meta. At the same time, for many of these transformations, no improvement is observed regardless. It must be noted that these models are 2048 x 2048, in which Fig. 1c already shows that this particular setting is not optimal. Hence, we would need to rerun this with more variations of the sizes just to be certain. 
+Consistent with the paper, higher \texttt{meta} leads to better performance (potentially criticality is around 1.0), in which earlier tasks still perform well. Interestingly, too high \texttt{meta} could lead to some degradation (though still good) for more recent tasks - this is possibly because high values would bias most changes happening for earlier tasks and consolidate many hidden weights from early ones. Regardless, these results confirm the benefits of the metaplasticity to solve the pMNIST task, which is one of the benchmarks for catastrophic forgetting. Surprisingly, the average time taken to train each epoch did not vary significantly between different types of variations shown here  
 
+However, contrary to the benefits from increased hidden layer widths shown in the original paper, we found that large networks could be harmful. The peak performance is around $H=1024$ but further model width increase decreases performance even in comparison to the $H=512$ network tested here. We hypothesized that maybe larger networks would require more time to balance consolidation and learning. Hence we varied EPT (in the paper EPT=40), but we never could replicate the size effects, for multiple runs on multiple different machine resources. Currently, we do not have any explanation for this. 
 
-\begin{figure}[h]
+\subsubsection{Lipschitz regularization}
+
+\begin{figure}[ht]
     \centering
-    \includegraphics[width=\textwidth]{figures/report/Fig4.pdf}
-    \caption{Test performance of the BNN models at the end of metaplasticity (colors) training in response to different monochrome natural corruptions (panels, original is last) generated from different tasks. The model here is MLP BNN with 2 hidden layers of 2048 units each. See Fig \ref{fig:fig3}. for demonstrations of natural corruption. The x-axis for each panel represents where the original test data come from, e.g. task-2 in the shot\_noise panel means that the test dataset is the task-2 (permuted MNIST) that gets corrupted with shot\_noise corruption. }
+    \includegraphics[width=0.65\textwidth]{figures/report/Fig4.pdf}
+    \caption{The effects of Lipschitz regularization importance $\beta_{\mathrm{DQ}}$ (left to right) to the pMNIST task in addition to the metaplasticity training (colors)}
     \label{fig:fig4}
 \end{figure}
 
+In addition, we also tested the Lipschitz regularization for improving the robustness of quantized neural networks \cite{Lin_2019} on top of metaplasticity training. We chose the hyperparameter $\beta_{\mathrm{DQ}}$ similar to the original paper on defensive quantization (DQ). Intriguingly, these two processes counteract each other to some extent in \autoref{fig:fig4}, as the medium value of $\beta_{\mathrm{DQ}}$ improves slightly catastrophic forgetting, but the largest value here degrades it, especially for medium \texttt{meta} hyperparameter. 
 
-\subsection{Experiment 1.2: Metaplasticity-trained BNN in response to adversarial attacks to original MNIST data}
+However, one drawback of the metaplasticity method not explicitly mentioned in the main text is the reliance on task-relevant batchnorm states. According to the authors \cite{Laborieux_Ernoult_Hirtzlin_Querlioz_2021}, technically, these states are cheap to store relative to weights, but realistically it is not explicitly clear how to load these weights automatically and effectively. Hence, moving forward with perturbation robustness testing for the pMNIST task, we removed this dependence to fairly assess the robust continual learning. 
 
-We have reproduced the effectiveness of a white-box adversarial attack ‘Fast Gradient Sign Attack (FGSM)’ with the goal of misclassification on BNN. Adversarial attacks in general try to add the least amount of perturbations to the input data to cause the desired misclassification. FGSM is a very powerful yet intuitive attack. For a given input, FGSM calculates the gradients of the loss function with respect to the input and adjusts the input by adding a small perturbation in the directions of the gradients to cause the misclassification. 
+\subsubsection{Natural corruptions to pMNIST tasks}
 
-Currently, we have only examined the attacks on the original MNIST dataset (i.e. task-01) with the models trained like above. The results are shown in Fig. \ref{fig:fig5} (some examples are shown in Fig. \ref{fig:fig6}), illustrating that BNN is quite sensitive to adversarial attacks and continual learning worsens the performance significantly. The metaplasticity process does not seem to lead to much improvement to guard against FGSM attacks, potentially only very little for quite small perturbation strengths. However, we are unclear yet how accuracy could reach below chance here. Regardless, we would train the models again for appropriate sizes, as well as exploring smaller perturbation strengths (< 0.05) to see whether there are actually clear benefits even in this range. Additionally, we could consider integrating the Lipschitz regularization term for the hidden weight matrices, as proposed in \cite{Lin_2019}, in addition to metaplasticity training to safeguard against such attacks; then we could test again for both catastrophic forgetting, naturalistic corruption and adversarial attacks. 
-
-\begin{figure}
+\begin{figure}[ht]
     \centering
-    \includegraphics[width=0.9\textwidth]{figures/report/Fig5.pdf}
-    \caption{FGSM adversarial attack on MNIST data of the BNN trained with metaplasticity during permuted MNIST task for 2 different training phases of the model. The test accuracy due to FGSM attacks is shown as a function of the perturbation strengths epsilons. Trained at task-01 refers to the end of the training phase in which the model was trained at MNIST dataset, while task-06 means that the model was the end of the entire metaplasticity training process. Only attacks on the original MNIST were tested here. Future iterations will integrate attacks on the following tasks (i.e. on pMNIST). }
+    \includegraphics[width=1.1\textwidth]{figures/report/Fig5.pdf}
+    \caption{
+    Natural corruption robustness after metaplasticity training (colors) and Lipschitz regularization (top to bottom) in the pMNIST task. 
+    From left to right is the source of the task data. 
+    The radius shows the test accuracy due to these different perturbation methods (different angles, with the original at $0^{\circ}$).
+    }
     \label{fig:fig5}
 \end{figure}
 
+Next, we moved on to applying perturbations onto our MNIST and pMNIST datasets after training the BNN models with metaplasticity optimization and Lipschitz regularization. The examples of these corruption transformations are shown in \autoref{fig:fig2}. It must be noted that these types of corruption are possibly more realistic when considered with colored images like CIFAR or ImageNet, and the more appropriate benchmarks for catastrophic forgetting coupled with these types of perturbations would be MNIST-FMNIST or split-class CIFAR. Regardless, for now, we chose permuted MNIST as our first approach to assess catastrophic forgetting with natural corruptions.
 
+The results are shown in \autoref{fig:fig5} for the models at the end of training for different values of \texttt{meta}. First, note that removing the task-relevant batchnorm states here reveals the model's accuracy for the original case, though the metaplasticity training preserves some nontrivial performance but not qualified for continual training. However, although the effect of magnitude is debatable, the inclusion of metaplasticity improves robustness against many other naturalistic corruptions, but, as expected, not so much for the most current task. The inclusion of the Lipschitz regularization has quite mixed effects, as there appears to be both cases of improvements and degradations for earlier tasks. 
 
-\begin{figure}
+\subsubsection{Adversarial attacks to pMNIST tasks}
+
+\begin{figure}[ht]
     \centering
-    \includegraphics[width=\textwidth]{figures/report/Fig6.pdf}
-    \caption{FGSM adversarial attack on MNIST data of the BNN trained with metaplasticity during permuted MNIST task for 2 different training phases of the model. 
+    \includegraphics[width=1.1\textwidth]{figures/report/Fig6.pdf}
+    \caption{
+    Adversarial robustness after metaplasticity training (colors) and Lipschitz regularization (top to bottom) in the pMNIST task. From left to right is the source of the task data. 
+    The radius shows the calculated log (to see the difference) of \texttt{auc\_log} due to these different perturbation methods (different angles, with the original at $0^{\circ}$). 
+    See methods for more information on the types of adversarial attacks and the calculation of \texttt{auc\_log}.
     }
     \label{fig:fig6}
 \end{figure}
 
+Lastly, for the pMNIST task, we used different adversarial attacks and calculated the \texttt{auc\_log} as a way to assess the model adversarial robustness after metaplasticity and Lipschitz regularization (see Methods). The results are shown in \autoref{fig:fig6}. First, in retrospect, this might not be the most effective way to address adversarial robustness, for example, inspecting a specific range of perturbation rather than considering the whole range would have been a better choice. Regardless, the preliminary results shown in \autoref{fig:fig6} reveals the mixed effects of these two processes again. However, for the baseline case without metaplasticity training, the inclusion of this $\beta_{\mathrm{DQ}}$ in the most current task (leftmost column, lightest color) unfortunately does not achieve noticeable benefits. For previous tasks, the inclusion the medium \texttt{meta} hyperparameter seems to improve robustness but the effect of $\beta_{\mathrm{DQ}}$ again does not seem clear. Future experiments should take into account adversarial training in addition to the Lipschitz regularization as suggested in the original paper \cite{Lin_2019}.
 
-\begin{figure}
+\subsection{Class Incremental Learning on CIFAR-100 Features}
+
+\begin{figure}[ht]
     \centering
-    \includegraphics[width=1\textwidth]{figures/report/Fig7.png}
-    \caption{FGSM adversarial attack on MNIST data of the BNN trained with metaplasticity during permuted MNIST task for 2 different training phases of the model. 
+    \includegraphics[width=0.8\textwidth]{figures/report/Fig7.pdf}
+    \caption{
+    Metplasticity training with the class incremental learning on CIFAR datasets. 
     }
     \label{fig:fig7}
 \end{figure}
 
+We next experimented with an incremental learning setting where the model learns different subsets of classes of CIFAR-10 and CIFAR-100 datasets. CIFAR-10 was divided into two subsets (animal subset and vehicle subset). Since CIFAR-100 consists of more classes (100 classes), we prepared six subsets based on the class labels. We use a BNN composed of one hidden layer with 2048 neurons for CIFAR-10 and BNN composed of two hidden layers with 2048 neurons each. For the experiment we selected three \texttt{meta} values: 0.0, 1.0, and 1.3; for both of the tasks. The key idea behind these tasks is that learning features from images does not change over time.
 
-\begin{figure}
+
+\begin{figure}[ht]
     \centering
-    \includegraphics[width=\textwidth]{figures/report/Fig8.pdf}
-    \caption{FGSM adversarial attack on MNIST data of the BNN trained with metaplasticity during permuted MNIST task for 2 different training phases of the model. 
+    \includegraphics[width=1\textwidth]{figures/report/Fig8.png}
+    \caption{Effects of applying various natural corruptions to model accuracy in case of CIFAR-100 dataset, across different \texttt{meta} parameter
     }
     \label{fig:fig8}
 \end{figure}
 
-\section{Potential Next Steps}
+To extract features from CIFAR-10 and CIFAR-100 datasets, we used the convolutional layers of the ResNet-18 network (removing the last layer), which is pretrained on the ImageNet dataset. CIFAR-10 and CIFAR-100 images were reshaped from 32 x 32 pixels to 220 x 220 pixels, randomly cropped using 200 x 200 windows, and randomly flipped (along the vertical axis). We made ten passes through the training dataset to extract 500,000 image features, but only performed one pass through the test dataset to extract 10,000 images. The extracted features were then trained using binarized neural networks, with shapes 512 x 2048 x 10 and 512 x 2048 x 2048 x 100 for CIFAR-10 and CIFAR-100, respectively. 
 
-In addition to (blue texts) re-running some of the trainings with a few more variations and re-testing on both natural corruptions, as well as adversarial attacks with FGSM with potential integration of Lipschitz regularization, here are a few other things we need to consider:
+The results for metaplasticity training with CIFAR datasets are shown in \autoref{fig:fig7}. As expected, without synaptic metaplasticity in the CIFAR-10 dataset, the model ``forgot'' task 1 after learning task 2. Similarly, only the current subset was ``remembered'' for the CIFAR-100 task. For the CIFAR-10 case, $\texttt{meta} = 1.3$ performed the best, but $\texttt{meta} = 1.0$ for CIFAR-100, giving reasonable accuracy values for the last four tasks. One strange observation arose in the case when $\texttt{meta} = 1.3$ for the latter case, the model could not learn the last two tasks at all. We hypothesize that, since a larger \texttt{meta} value makes the model more rigid to changes in the binary weights, tasks 5 and 6 could not be learned. This was qualitatively similar to why high \texttt{meta} values decrease performance slightly as a function of task sequence in \autoref{fig:fig3}.
+
+\subsubsection{Natural corruption to CIFAR split-class task}
+
+We then applied various types of natural corruption to CIFAR-10 and CIFAR-100 datasets, a more realistic approach as natural corruption is most common in the case of colored images. From \autoref{fig:supp2} we can observe that the model accuracy is less affected by the various natural corruptions to CIFAR-10 images. Similar behavior is also observed in \autoref{fig:fig8} for the CIFAR-100 dataset. One possible explanation is that the image features remain intact even after adding a small amount of noise. In fact, we introduced noise into the images in the data preparation step as we scaled up the number of pixels from 32 x 32 to 220 x 220, randomly cropped using a 200 x 200 window, and finally applied random horizontal flips. 
+
+\subsubsection{Adversarial attacks on CIFAR}
+
+We finally tested the performance of BNNs with synaptic metaplasticity models under FGSM attacks (\autoref{fig:fig9}). We can observe the model accuracy rapidly degraded as we increased the amount of epsilon (noise). Synaptic metaplasticity does not seem to provide any resistance to FGSM attack. Unfortunately, we did not have time to test a wide range of adversarial attacks except for the FGSM method for the CIFAR dataset.
+
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=1.1\textwidth]{figures/report/Fig9.pdf}
+    \caption{
+    FGSM adversarial attack on CIFAR-100 data of the BNN trained with metaplasticity (colors) across the different subsets (left to right), showing the test accuracy as a function of perturbation strengths $\epsilon$.
+    }
+    \label{fig:fig9}
+\end{figure}
+
+\section{Conclusion}
+
+While metaplasticity for BNN helped prevent catastrophic forgetting (pMNIST and split-class CIFAR tasks), the results were not robust. There appears to be a trade-off for continual learning and robustness - only medium values of \texttt{meta} would result in more robust models. Additionally, for the pMNIST task, Lipschitz regularization has mixed effects on model robustness for attacks and corruptions for the pMNIST task.
+    
+However, there were also issues within the metaplasticity training: (1) dependence on the task-relevant batchnorm states, (2) irreproducible network size benefits as seen in the paper \cite{Laborieux_Ernoult_Hirtzlin_Querlioz_2021}. Plus, we did not have time to assess model compression benefits and speed in comparison with real-valued networks - one reason was that metaplasticity was not effective in such networks. Hence, future experiments should involve 
+
 \begin{enumerate}
-    \item Since the corruptions are more realistic for datasets such as CIFAR, we might need to start integrating the split-CIFAR with convolutional BNN, then re-apply these robustness tests.
-    \item Measuring training times, memory and energy for the permuted MNIST tasks.
-    \item Run one of the continuous-valued networks in the paper to have something to compare (2) with.
+    \item more continual learning tasks (e.g., stream learning, MNIST-FMNIST) \cite{Farquhar2018-zz,Van_de_Ven2019-xl,Laborieux_Ernoult_Hirtzlin_Querlioz_2021}
+    \item more systematic comparisons (performance, time, inference, memory cost, robustness) between different known solutions for catastrophic forgetting (e.g. elastic weight consolidation \cite{Kirkpatrick2017-pe}, contextual gating \cite{Masse2018-ms}, synaptic intelligence \cite{Zenke2017-zl}) for neural networks across different quantization levels, as well as the continuous-valued networks
+    \item combination of robustness improvement training including revisiting Lipschitz regularization \cite{Lin_2019}, data augmentation for natural corruptions and adversarial training \cite{Madry2017-dx}. 
 \end{enumerate}
-
-
-
 
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{bibliography}
 
+\setcounter{figure}{0}
+\renewcommand{\thefigure}{S\arabic{figure}}
 
-\appendix
+\section{Supplemental Figures}
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=1.1\textwidth]{figures/report/FigS1.png}
+    \caption{Natural corruption applied to the CIFAR dataset.}
+    \label{fig:supp1}
+\end{figure}
 
-\section{Research Methods}
 
-\subsection{Part One}
-
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Morbi
-malesuada, quam in pulvinar varius, metus nunc fermentum urna, id
-sollicitudin purus odio sit amet enim. Aliquam ullamcorper eu ipsum
-vel mollis. Curabitur quis dictum nisl. Phasellus vel semper risus, et
-lacinia dolor. Integer ultricies commodo sem nec semper.
-
-\subsection{Part Two}
-
-Etiam commodo feugiat nisl pulvinar pellentesque. Etiam auctor sodales
-ligula, non varius nibh pulvinar semper. Suspendisse nec lectus non
-ipsum convallis congue hendrerit vitae sapien. Donec at laoreet
-eros. Vivamus non purus placerat, scelerisque diam eu, cursus
-ante. Etiam aliquam tortor auctor efficitur mattis.
-
-\section{Online Resources}
-
-Nam id fermentum dui. Suspendisse sagittis tortor a nulla mollis, in
-pulvinar ex pretium. Sed interdum orci quis metus euismod, et sagittis
-enim maximus. Vestibulum gravida massa ut felis suscipit
-congue. Quisque mattis elit a risus ultrices commodo venenatis eget
-dui. Etiam sagittis eleifend elementum.
-
-Nam interdum magna at lectus dignissim, ac dignissim lorem
-rhoncus. Maecenas eu arcu ac neque placerat aliquam. Nunc pulvinar
-massa et mattis lacinia.
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=1.1\textwidth]{figures/report/FigS2.png}
+    \caption{Effects of applying various natural corruptions to model accuracy in the case of the CIFAR-10 dataset.}
+    \label{fig:supp2}
+\end{figure}
 
 \end{document}
 \endinput
